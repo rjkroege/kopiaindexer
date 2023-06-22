@@ -1,0 +1,6 @@
+// Basics
+Edit X:kopiaindexer/\+Errors: 1,$d
+X:kopiaindexer/.*\.go: w
+
+{go build -tags debug}
+{./kopiaindexer}
