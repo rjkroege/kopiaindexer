@@ -5,38 +5,36 @@ import (
 	"bytes"
 	"fmt"
 	"io"
+	"net/url"
 	"os"
+	"strings"
 
 	"github.com/edwingeng/deque/v2"
 )
 
 func printEntry(dq *deque.Deque[[]byte], writer io.Writer) error {
 	hashcode := dq.PopFront()
-	filenameparts := dq.DequeueMany(-1)
 
-	allpieces := make([][]byte, 0, len(filenameparts)+1)
-	allpieces = append(allpieces, hashcode)
-	allpieces = append(allpieces, filenameparts...)
+	// TODO(rjk): Converts all in-filename whitespace into a single space.
+	filename := bytes.Join(dq.DequeueMany(-1), []byte(" "))
 
-	// TODO(rjk): Fix for the final output format.
-	totallen := 0
-	for _, fnp := range allpieces {
-		totallen += len(fnp)
-		totallen++
+	// TODO(rjk): Make this into a function.
+	pathparts := bytes.Split(filename, []byte{os.PathSeparator})
+	escapedpathparts := make([]string, 0, len(pathparts))
+	for _, s := range pathparts {
+		escapedpathparts = append(escapedpathparts, url.PathEscape(string(s)))
 	}
-	totallen++
-	// TODO(rjk): I have been too clever here. I will need to fix this up for
-	// the URL-style encoding.
+	finalpath := strings.Join(escapedpathparts, string(os.PathSeparator))
 
-	entry := make([]byte, 0, totallen)
-	for _, fnp := range allpieces {
-		entry = append(entry, fnp...)
-		entry = append(entry, ' ')
-	}
-	entry = append(entry, '\n')
+	// Assembly a final entry.
+	buffy := new(bytes.Buffer)
+	buffy.Write(hashcode)
+	buffy.WriteByte(' ')
+	buffy.WriteString(finalpath)
+	buffy.WriteByte('\n')
 
 	// The call to Write is atomic.
-	if _, err := writer.Write(entry); err != nil {
+	if _, err := writer.Write(buffy.Bytes()); err != nil {
 		return err
 	}
 	return nil
@@ -56,8 +54,6 @@ func parseTheStream(cmdout io.Reader, snapshotid string, writer io.Writer) error
 
 	for scanner.Scan() {
 		token := scanner.Bytes()
-		// DEBUG. Remove.
-		fmt.Println("token:", string(token))
 		// TODO(rjk): Preserve the whitespace in a robust way.
 
 		if bytes.HasPrefix(token, []byte(snapshotid)) {
