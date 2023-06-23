@@ -12,19 +12,22 @@ import (
 	"github.com/edwingeng/deque/v2"
 )
 
-func printEntry(dq *deque.Deque[[]byte], writer io.Writer) error {
-	hashcode := dq.PopFront()
-
-	// TODO(rjk): Converts all in-filename whitespace into a single space.
-	filename := bytes.Join(dq.DequeueMany(-1), []byte(" "))
-
-	// TODO(rjk): Make this into a function.
+func pathUrlEscape(filename []byte) string {
 	pathparts := bytes.Split(filename, []byte{os.PathSeparator})
 	escapedpathparts := make([]string, 0, len(pathparts))
 	for _, s := range pathparts {
 		escapedpathparts = append(escapedpathparts, url.PathEscape(string(s)))
 	}
 	finalpath := strings.Join(escapedpathparts, string(os.PathSeparator))
+	return finalpath
+}
+
+func printEntry(dq *deque.Deque[[]byte], writer io.Writer) error {
+	hashcode := dq.PopFront()
+
+	// TODO(rjk): Converts all in-filename whitespace into a single space.
+	filename := bytes.Join(dq.DequeueMany(-1), []byte(" "))
+	finalpath := pathUrlEscape(filename)
 
 	// Assembly a final entry.
 	buffy := new(bytes.Buffer)
