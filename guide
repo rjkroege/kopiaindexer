@@ -4,3 +4,4 @@ X:kopiaindexer/.*\.go: w
 
 {go build -tags debug}
 {./kopiaindexer}
+{go test}

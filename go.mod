@@ -23,6 +23,7 @@ require (
 	github.com/danieljoos/wincred v1.1.2 // indirect
 	github.com/dustin/go-humanize v1.0.1 // indirect
 	github.com/edsrzf/mmap-go v1.1.0 // indirect
+	github.com/edwingeng/deque/v2 v2.1.1 // indirect
 	github.com/fatih/color v1.15.0 // indirect
 	github.com/felixge/fgprof v0.9.3 // indirect
 	github.com/foomo/htpasswd v0.0.0-20200116085101-e3a90e78da9c // indirect

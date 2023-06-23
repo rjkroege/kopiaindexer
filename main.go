@@ -38,7 +38,7 @@ func main() {
 	}
 
 	for _, k := range manifests {
-		log.Println(k)
+		log.Println(k.ID, k.Source)
 
 		// these can run in parallel
 		// is there a benefit?
@@ -50,7 +50,7 @@ func listSnapshot(snapshotid string) {
 	// Get the list.
 
 	cmd := exec.Command("kopia", "list", "-r", "-o", snapshotid)
-	stdout, err := cmd.StdoutPipe()
+	cmdout, err := cmd.StdoutPipe()
 	if err != nil {
 		log.Fatal(err)
 	}
@@ -61,10 +61,10 @@ func listSnapshot(snapshotid string) {
 
 	// Copy from the stdout...
 	// TODO(rjk): parse the listing.
-	io.Copy(os.Stdout, stdout)
+	io.Copy(os.Stdout, cmdout)
 
 	if err := cmd.Wait(); err != nil {
 		log.Fatal(err)
 	}
-
 }
+
