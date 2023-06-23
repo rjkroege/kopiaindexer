@@ -2,7 +2,6 @@ package main
 
 import (
 	"encoding/json"
-	"io"
 	"log"
 	"os"
 	"os/exec"
@@ -38,17 +37,15 @@ func main() {
 	}
 
 	for _, k := range manifests {
-		log.Println(k.ID, k.Source)
+		log.Println(k.ID, k.Source.String())
 
-		// these can run in parallel
-		// is there a benefit?
-		listSnapshot(string(k.ID))
+		// TODO(rjk): This could be parallelized.
+		escapedsource := pathUrlEscape([]byte(k.Source.String()))
+		listSnapshot(string(k.ID), escapedsource)
 	}
 }
 
-func listSnapshot(snapshotid string) {
-	// Get the list.
-
+func listSnapshot(snapshotid, escapedsource string) {
 	cmd := exec.Command("kopia", "list", "-r", "-o", snapshotid)
 	cmdout, err := cmd.StdoutPipe()
 	if err != nil {
@@ -59,9 +56,9 @@ func listSnapshot(snapshotid string) {
 		log.Fatal(err)
 	}
 
-	// Copy from the stdout...
-	// TODO(rjk): parse the listing.
-	io.Copy(os.Stdout, cmdout)
+	if err := parseTheStream(cmdout, snapshotid, escapedsource, os.Stdout); err != nil {
+		log.Fatal("parseTheStream failed:", err)
+	}
 
 	if err := cmd.Wait(); err != nil {
 		log.Fatal(err)

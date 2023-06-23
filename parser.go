@@ -22,7 +22,7 @@ func pathUrlEscape(filename []byte) string {
 	return finalpath
 }
 
-func printEntry(dq *deque.Deque[[]byte], writer io.Writer) error {
+func printEntry(dq *deque.Deque[[]byte], writer io.Writer, snapshotid, escapedsource string) error {
 	hashcode := dq.PopFront()
 
 	// TODO(rjk): Converts all in-filename whitespace into a single space.
@@ -32,6 +32,10 @@ func printEntry(dq *deque.Deque[[]byte], writer io.Writer) error {
 	// Assembly a final entry.
 	buffy := new(bytes.Buffer)
 	buffy.Write(hashcode)
+	buffy.WriteByte(' ')
+	buffy.WriteString(escapedsource)
+	buffy.WriteByte(' ')
+	buffy.WriteString(snapshotid)
 	buffy.WriteByte(' ')
 	buffy.WriteString(finalpath)
 	buffy.WriteByte('\n')
@@ -48,7 +52,7 @@ func printEntry(dq *deque.Deque[[]byte], writer io.Writer) error {
 // (including newlines sigh), it uses a push-down automoton approach to
 // detect the hash and filename components. This approach will fail if
 // the snapshotid is whitespace-prefixed in the filename itself.
-func parseTheStream(cmdout io.Reader, snapshotid string, writer io.Writer) error {
+func parseTheStream(cmdout io.Reader, snapshotid, escapedsource string, writer io.Writer) error {
 	scanner := bufio.NewScanner(cmdout)
 	// Set the split function for the scanning operation.
 	scanner.Split(bufio.ScanWords)
@@ -67,7 +71,7 @@ func parseTheStream(cmdout io.Reader, snapshotid string, writer io.Writer) error
 			// If we are on the first line of output, we (as of yet) have no idea
 			// where the file name will end. So just skip the pop.
 			if dq.Len() > 0 {
-				if err := printEntry(dq, writer); err != nil {
+				if err := printEntry(dq, writer, snapshotid, escapedsource); err != nil {
 					return nil
 				}
 			}
@@ -87,7 +91,7 @@ func parseTheStream(cmdout io.Reader, snapshotid string, writer io.Writer) error
 
 	// I have an unhandled example.
 	if dq.Len() > 0 {
-		if err := printEntry(dq, writer); err != nil {
+		if err := printEntry(dq, writer, snapshotid, escapedsource); err != nil {
 			return nil
 		}
 	}
