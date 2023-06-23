@@ -67,4 +67,3 @@ func listSnapshot(snapshotid string) {
 		log.Fatal(err)
 	}
 }
-
