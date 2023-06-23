@@ -10,24 +10,6 @@ import (
 	"github.com/edwingeng/deque/v2"
 )
 
-const (
-	maybe_entry_start = iota
-	maybe_snapshot_id
-	hash_snapshot_separation
-	filename
-)
-
-// need a token of lookback.
-// tokens are separated by whitespace.
-// push tokens into stack
-// if current token starts with snapshotid then
-//	previous token is the key
-// need to read byte-by-byte
-// if I find the snapshotid, then the most recent space-free token
-// states:
-// before (accumulating bytes in the key)
-// found a
-
 func printEntry(dq *deque.Deque[[]byte], writer io.Writer) error {
 	hashcode := dq.PopFront()
 	filenameparts := dq.DequeueMany(-1)
@@ -60,10 +42,11 @@ func printEntry(dq *deque.Deque[[]byte], writer io.Writer) error {
 	return nil
 }
 
-// this is a classic PDA
-// but I need to record the separations.
-// to handle "the  quick" (with two spaces)
-
+// parseTheStream extracts the components (hash, filename) from the
+// output of a `kopia ls -o`. Because files names can contain whitespace
+// (including newlines sigh), it uses a push-down automoton approach to
+// detect the hash and filename components. This approach will fail if
+// the snapshotid is whitespace-prefixed in the filename itself.
 func parseTheStream(cmdout io.Reader, snapshotid string, writer io.Writer) error {
 	scanner := bufio.NewScanner(cmdout)
 	// Set the split function for the scanning operation.
@@ -112,14 +95,3 @@ func parseTheStream(cmdout io.Reader, snapshotid string, writer io.Writer) error
 
 	return nil
 }
-
-/*
-get-word (with its whitepsace)
-if prefix of word is snapshotid
-	then head(stack) is the current entry
-pop last stack word (this is a filehash)
-pop all pushed words:
-	deepest is the entry
-	print the remaining as the filename (escaped)
-push the memoized stack word (filehash)
-*/
