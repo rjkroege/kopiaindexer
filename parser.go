@@ -60,9 +60,11 @@ func parseTheStream(cmdout io.Reader, snapshotid, escapedsource string, writer i
 	dq := deque.NewDeque[[]byte]()
 
 	for scanner.Scan() {
-		token := scanner.Bytes()
-		// TODO(rjk): Preserve the whitespace in a robust way.
+		t := scanner.Bytes()
+		token := make([]byte, len(t))
+		copy(token, t)
 
+		// TODO(rjk): Preserve the whitespace in a robust way.
 		if bytes.HasPrefix(token, []byte(snapshotid)) {
 			// If prefix of word is snapshotid then head(stack) is the current entry.
 			// So memoize it
@@ -95,6 +97,5 @@ func parseTheStream(cmdout io.Reader, snapshotid, escapedsource string, writer i
 			return nil
 		}
 	}
-
 	return nil
 }
