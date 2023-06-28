@@ -1,7 +1,6 @@
 package main
 
 import (
-	"bufio"
 	"bytes"
 	"fmt"
 	"io"
@@ -12,26 +11,31 @@ import (
 	"github.com/edwingeng/deque/v2"
 )
 
-func pathUrlEscape(filename []byte) string {
-	pathparts := bytes.Split(filename, []byte{os.PathSeparator})
+func pathUrlEscape(filename string) string {
+	pathparts := strings.Split(filename, string(os.PathSeparator))
 	escapedpathparts := make([]string, 0, len(pathparts))
 	for _, s := range pathparts {
-		escapedpathparts = append(escapedpathparts, url.PathEscape(string(s)))
+		escapedpathparts = append(escapedpathparts, url.PathEscape(s))
 	}
 	finalpath := strings.Join(escapedpathparts, string(os.PathSeparator))
 	return finalpath
 }
 
-func printEntry(dq *deque.Deque[[]byte], writer io.Writer, snapshotid, escapedsource string) error {
+func printEntry(dq *deque.Deque[Token], writer io.Writer, snapshotid, escapedsource string) error {
 	hashcode := dq.PopFront()
+	if hashcode.Kind != tHash {
+		return fmt.Errorf("parse error?")
+	}
 
-	// TODO(rjk): Converts all in-filename whitespace into a single space.
-	filename := bytes.Join(dq.DequeueMany(-1), []byte(" "))
-	finalpath := pathUrlEscape(filename)
+	sb := new(strings.Builder)
+	for _, t := range dq.DequeueMany(-1) {
+		sb.WriteString(t.Contents)
+	}
+	finalpath := pathUrlEscape(sb.String())
 
 	// Assembly a final entry.
 	buffy := new(bytes.Buffer)
-	buffy.Write(hashcode)
+	buffy.WriteString(hashcode.Contents)
 	buffy.WriteByte(' ')
 	buffy.WriteString(escapedsource)
 	buffy.WriteByte(' ')
@@ -53,28 +57,33 @@ func printEntry(dq *deque.Deque[[]byte], writer io.Writer, snapshotid, escapedso
 // detect the hash and filename components. This approach will fail if
 // the snapshotid is whitespace-prefixed in the filename itself.
 func parseTheStream(cmdout io.Reader, snapshotid, escapedsource string, writer io.Writer) error {
-	scanner := bufio.NewScanner(cmdout)
-	// Set the split function for the scanning operation.
-	scanner.Split(bufio.ScanWords)
+	lexer := NewLexer(cmdout)
+	dq := deque.NewDeque[Token]()
 
-	dq := deque.NewDeque[[]byte]()
+	for lexer.Scan() {
+		token := lexer.NextToken()
 
-	for scanner.Scan() {
-		t := scanner.Bytes()
-		token := make([]byte, len(t))
-		copy(token, t)
+		if strings.HasPrefix(token.Contents, snapshotid) {
+			// If prefix of word is snapshotid then a valid parse would be '\n'? hash space
+			s := dq.PopBack()
+			h := dq.PopBack()
+			dq.TryPopBack()
 
-		// TODO(rjk): Preserve the whitespace in a robust way.
-		if bytes.HasPrefix(token, []byte(snapshotid)) {
-			// If prefix of word is snapshotid then head(stack) is the current entry.
-			// So memoize it
-			memoizedentry := dq.PopBack()
+			if s.Kind != tWhitespace || h.Kind != tText {
+				// TODO(rjk): Some kind of details about the parse error.
+				return fmt.Errorf("parse error")
+			}
+
+			memoizedentry := Token{
+				Kind:     tHash,
+				Contents: h.Contents,
+			}
 
 			// If we are on the first line of output, we (as of yet) have no idea
 			// where the file name will end. So just skip the pop.
 			if dq.Len() > 0 {
 				if err := printEntry(dq, writer, snapshotid, escapedsource); err != nil {
-					return nil
+					return err
 				}
 			}
 
@@ -82,17 +91,27 @@ func parseTheStream(cmdout io.Reader, snapshotid, escapedsource string, writer i
 			dq.PushBack(memoizedentry)
 
 			// Push the filename
-			dq.PushBack(bytes.TrimPrefix(token, []byte(snapshotid)))
+			dq.PushBack(Token{
+				Kind:     tText,
+				Contents: strings.TrimPrefix(token.Contents, snapshotid),
+			})
 		} else {
 			dq.PushBack(token)
 		}
 	}
-	if err := scanner.Err(); err != nil {
-		fmt.Fprintln(os.Stderr, "reading input:", err)
+	if err := lexer.Err(); err != nil {
+		return fmt.Errorf("reading input: %v", err)
 	}
 
 	// I have an unhandled example.
 	if dq.Len() > 0 {
+		// I assume that Kopia is going to always produce files where each line ends
+		// with a newline token. Remove that.
+		nl := dq.PopBack()
+		if nl.Kind != tNewline {
+			dq.PushBack(nl)
+		}
+
 		if err := printEntry(dq, writer, snapshotid, escapedsource); err != nil {
 			return nil
 		}

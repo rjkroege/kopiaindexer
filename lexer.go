@@ -40,8 +40,6 @@ func NewLexer(r io.Reader) *Lexer {
 }
 
 func (s *Lexer) Scan() bool {
-	// Scanner loop
-
 	if s.Kind == tEof || s.Kind == tError {
 		return false
 	}

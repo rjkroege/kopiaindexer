@@ -48,23 +48,20 @@ k71691dad06d9c9f975369373bcd6e413 XXX k76d7b2df28ab5a559e15e8aa7c319500 /a/.git/
 			// Test is currently invalid. There should be 2 escaped spaces between the and quick.
 			input: `k7d4987f893573278f5584400a47d1ac8 k76d7b2df28ab5a559e15e8aa7c319500/a/ the  quick
 `,
-			want: `k7d4987f893573278f5584400a47d1ac8 XXX k76d7b2df28ab5a559e15e8aa7c319500 /a/%20the%20quick
+			want: `k7d4987f893573278f5584400a47d1ac8 XXX k76d7b2df28ab5a559e15e8aa7c319500 /a/%20the%20%20quick
 `,
 			snapshotid: "k76d7b2df28ab5a559e15e8aa7c319500",
 		},
 		{
-			// Newlines in file name. Note 1 space before the and 2 between the and quick.
-			// Test is currently invalid. The newline is replaced with a space.
+			// Newlines in file name.
 			input: `k7d4987f893573278f5584400a47d1ac8 k76d7b2df28ab5a559e15e8aa7c319500/a/ the
 quick fox
 `,
-			want: `k7d4987f893573278f5584400a47d1ac8 XXX k76d7b2df28ab5a559e15e8aa7c319500 /a/%20the%20quick%20fox
+			want: `k7d4987f893573278f5584400a47d1ac8 XXX k76d7b2df28ab5a559e15e8aa7c319500 /a/%20the%0Aquick%20fox
 `,
 			snapshotid: "k76d7b2df28ab5a559e15e8aa7c319500",
 		},
 		{
-			// Newlines in file name. Note 1 space before the and 2 between the and quick.
-			// Test is currently invalid. The newline is replaced with a space.
 			input: `f7baa4fbb7ab4719e75ec7c3377ecf0f   f03e4132dfe5398d579fc910cb362c9a/March_piano_songs/Beethoven - Fur Elise (original) sheet music for Piano - 8notes.com_files/x64_min.css`,
 			want: `f7baa4fbb7ab4719e75ec7c3377ecf0f XXX f03e4132dfe5398d579fc910cb362c9a /March_piano_songs/Beethoven%20-%20Fur%20Elise%20%28original%29%20sheet%20music%20for%20Piano%20-%208notes.com_files/x64_min.css
 `,

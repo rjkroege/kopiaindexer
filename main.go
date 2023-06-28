@@ -40,7 +40,7 @@ func main() {
 		log.Println(k.ID, k.Source.String())
 
 		// TODO(rjk): This could be parallelized.
-		escapedsource := pathUrlEscape([]byte(k.Source.String()))
+		escapedsource := pathUrlEscape(k.Source.String())
 		listSnapshot(string(k.ID), escapedsource)
 	}
 }
