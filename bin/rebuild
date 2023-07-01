@@ -1,0 +1,8 @@
+#!/bin/bash
+export HASHES_FILE=~/.kopiaindex/hashes.sorted
+export SUFFIX_ARRAY_FILE=~/.kopiaindex/suffixarray.hashes
+export FILENAMES_FILE=~/.kopiaindex/filenames.sorted
+mkdir -p ~/.kopiaindex
+kopiaindexer | sort > "${HASHES_FILE}"
+cat "${HASHES_FILE}" | filenamearray > "${FILENAMES_FILE}"
+cat "${HASHES_FILE}" | suffixarray > "${SUFFIX_ARRAY_FILE}"
