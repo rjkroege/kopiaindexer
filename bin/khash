@@ -1,0 +1,3 @@
+#!/bin/bash
+export HASHES_FILE=~/.kopiaindex/hashes.sorted
+echo $* | fmt -1 | sort | /usr/bin/join - "${HASHES_FILE}"
