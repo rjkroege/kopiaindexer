@@ -1,6 +1,6 @@
 #!/bin/bash
-export HASHES_FILE=~/.kopiaindex/hashes.sorted
-export INDEX_FILE=~/.kopiaindex/suffixarray.hashes
+export HASHES_FILE=kopia.fullindex
+export INDEX_FILE=kopia.suffixarray
 # TODO: URL encode the search terms
 ENCODED="$*"
 look "${ENCODED}" "${INDEX_FILE}" | awk '{ print $2 }' | sort | /usr/bin/join - "${HASHES_FILE}"
