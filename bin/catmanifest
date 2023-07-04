@@ -1,0 +1,2 @@
+#!/bin/bash
+kopia manifest show $* | grep -v '^//'
