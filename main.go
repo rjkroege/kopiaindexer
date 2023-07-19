@@ -4,6 +4,7 @@ import (
 	"bufio"
 	"encoding/json"
 	"flag"
+	"fmt"
 	"log"
 	"os"
 	"os/exec"
@@ -50,8 +51,13 @@ func main() {
 
 	escapedsource := pathUrlEscape(k.Source.String())
 	log.Println("List snapshot", k.RootEntry.ObjectID)
+	if k.RootEntry.DirSummary.TotalFileCount == 1 {
+		id := k.RootEntry.ObjectID.String()
+		fmt.Printf("%s %s %s %s\n", id, escapedsource, id, escapedsource)
+		return
+	}
 	// TODO(rjk): Support single files manifests.
-	listSnapshot(string(k.RootEntry.ObjectID.String()), escapedsource)
+	listSnapshot(k.RootEntry.ObjectID.String(), escapedsource)
 	return
 }
 
