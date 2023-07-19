@@ -56,7 +56,6 @@ func main() {
 		fmt.Printf("%s %s %s %s\n", id, escapedsource, id, escapedsource)
 		return
 	}
-	// TODO(rjk): Support single files manifests.
 	listSnapshot(k.RootEntry.ObjectID.String(), escapedsource)
 	return
 }
