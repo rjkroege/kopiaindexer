@@ -1,5 +1,5 @@
-_kopiaindexer = ../kopiaindexer
-_filenamearray = ../filenamearray
+# Set KOPIAINDEXER_BIN to the location of the helper scripts and commands (e.g. filenamearray)
+_kibin = $KOPIAINDEXER_BIN
 
 # Builds allmanifests: a variable defining the ids of all of the kopia manifests.
 `{head -8 manifest-listing |  awk 'BEGIN { printf("allmanifests =")} /type:snapshot/ {printf(" %s", $1)} END { printf("\n") }'}
@@ -11,16 +11,15 @@ manifestsfiles = ${allmanifests:%=%.manifest}
 indexfiles = ${allmanifests:%=%.index}
 
 %.filenames: %.index
-	$_filenamearray < $stem.index > $stem.filenames
+	$_kibin/filenamearray < $stem.index > $stem.filenames
 
 %.manifest:
 	kopia manifest show $stem > $target
 
 %.index: %.manifest
-	$_kopiaindexer $stem.manifest | sort > $stem.index
+	$_kibin/kopiaindexer $stem.manifest | sort > $stem.index
 
-# Consider making the mkfile permit keeping this in a different
-# directory.
+# Consider making the mkfile permit keeping this in a different directory.
 all:V: \
 	kopia.filenames \
 	kopia.fullindex
