@@ -1,6 +1,7 @@
 package main
 
 import (
+	"bufio"
 	"encoding/json"
 	"flag"
 	"log"
@@ -10,80 +11,48 @@ import (
 	"github.com/kopia/kopia/cli"
 )
 
+// Expects a single manifest file as argument.
+
 func main() {
 	log.Println("foo")
 
-	var kID = "";
-	flag.StringVar(&kID, "manifest", "", "Specify a manifest id");
-	flag.Parse();
-
-
-	// Get the list of snapshots.
-	cmd := exec.Command("kopia", "snapshot", "list", "-a", "--json")
-	if (len(kID) > 0) {
-		log.Println("Processing single manifest", kID)
-		//cmd = exec.Command("kopia", "manifest", "show", kID)
-		cmd = exec.Command("catmanifest", kID)
-
-		stdout, err := cmd.StdoutPipe()
-		if err != nil {
-			log.Fatal(err)
-		}
-
-		if err := cmd.Start(); err != nil {
-			log.Fatal(err)
-		}
-
-		dec := json.NewDecoder(stdout)
-		dec.DisallowUnknownFields()
-
-		var manifest cli.SnapshotManifest
-		if err := dec.Decode(&manifest); err != nil {
-			log.Fatal(err)
-		}
-
-		if err := cmd.Wait(); err != nil {
-			log.Fatal(err)
-		}
-
-		k := manifest;
-		log.Println(k.ID, k.Source.String())
-
-		// TODO(rjk): This could be parallelized.
-		escapedsource := pathUrlEscape(k.Source.String())
-		log.Println("List snapshot", k.RootEntry.ObjectID);
-		listSnapshot(kID, escapedsource)
-		return;
+	flag.Parse()
+	if len(flag.Args()) != 1 {
+		log.Fatalf("expect a single manifest file as argument\n")
 	}
-	stdout, err := cmd.StdoutPipe()
+
+	mfn := flag.Args()[0]
+
+	fd, err := os.Open(mfn)
 	if err != nil {
-		log.Fatal(err)
+		log.Fatalf("given argument %q can't be opened: %v", mfn, err)
 	}
 
-	if err := cmd.Start(); err != nil {
-		log.Fatal(err)
-	}
+	bfd := bufio.NewReader(fd)
 
-	dec := json.NewDecoder(stdout)
+	// Manifest files start with a comment block. This is not valid JSON. So
+	// before we decode, we need to advance the fd to the start of the first
+	// line following the comment block.
+
+	SkipCommentLines(bfd)
+
+	// Decode what remains.
+	dec := json.NewDecoder(bfd)
 	dec.DisallowUnknownFields()
 
-	var manifests []cli.SnapshotManifest
-
-	if err := dec.Decode(&manifests); err != nil {
+	// The manifest is a snapshot manifest
+	var k cli.SnapshotManifest
+	if err := dec.Decode(&k); err != nil {
 		log.Fatal(err)
 	}
 
-	if err := cmd.Wait(); err != nil {
-		log.Fatal(err)
-	}
+	log.Println(k)
 
-	for _, k := range manifests {
-		log.Println(k.ID, k.Source.String())
-
-		// TODO(rjk): This could be parallelized.
-		escapedsource := pathUrlEscape(k.Source.String())
-		listSnapshot(string(k.ID), escapedsource)
-	}
+	escapedsource := pathUrlEscape(k.Source.String())
+	log.Println("List snapshot", k.RootEntry.ObjectID)
+	// TODO(rjk): Support single files manifests.
+	listSnapshot(string(k.RootEntry.ObjectID.String()), escapedsource)
+	return
 }
 
 func listSnapshot(snapshotid, escapedsource string) {
