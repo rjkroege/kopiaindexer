@@ -1,7 +1,9 @@
 package main
 
 import (
+	"bufio"
 	"encoding/json"
+	"flag"
 	"log"
 	"os"
 	"os/exec"
@@ -9,40 +11,48 @@ import (
 	"github.com/kopia/kopia/cli"
 )
 
+// Expects a single manifest file as argument.
+
 func main() {
 	log.Println("foo")
 
-	// Get the list of snapshots.
-	cmd := exec.Command("kopia", "snapshot", "list", "-a", "--json")
-	stdout, err := cmd.StdoutPipe()
+	flag.Parse()
+	if len(flag.Args()) != 1 {
+		log.Fatalf("expect a single manifest file as argument\n")
+	}
+
+	mfn := flag.Args()[0]
+
+	fd, err := os.Open(mfn)
 	if err != nil {
-		log.Fatal(err)
+		log.Fatalf("given argument %q can't be opened: %v", mfn, err)
 	}
 
-	if err := cmd.Start(); err != nil {
-		log.Fatal(err)
-	}
+	bfd := bufio.NewReader(fd)
 
-	dec := json.NewDecoder(stdout)
+	// Manifest files start with a comment block. This is not valid JSON. So
+	// before we decode, we need to advance the fd to the start of the first
+	// line following the comment block.
+
+	SkipCommentLines(bfd)
+
+	// Decode what remains.
+	dec := json.NewDecoder(bfd)
 	dec.DisallowUnknownFields()
 
-	var manifests []cli.SnapshotManifest
-
-	if err := dec.Decode(&manifests); err != nil {
+	// The manifest is a snapshot manifest
+	var k cli.SnapshotManifest
+	if err := dec.Decode(&k); err != nil {
 		log.Fatal(err)
 	}
 
-	if err := cmd.Wait(); err != nil {
-		log.Fatal(err)
-	}
+	log.Println(k)
 
-	for _, k := range manifests {
-		log.Println(k.ID, k.Source.String())
-
-		// TODO(rjk): This could be parallelized.
-		escapedsource := pathUrlEscape(k.Source.String())
-		listSnapshot(string(k.ID), escapedsource)
-	}
+	escapedsource := pathUrlEscape(k.Source.String())
+	log.Println("List snapshot", k.RootEntry.ObjectID)
+	// TODO(rjk): Support single files manifests.
+	listSnapshot(string(k.RootEntry.ObjectID.String()), escapedsource)
+	return
 }
 
 func listSnapshot(snapshotid, escapedsource string) {
