@@ -1,0 +1,28 @@
+_kopiaindexer = ../kopiaindexer
+_filenamearray = ../filenamearray
+
+# Builds allmanifests: a variable defining the ids of all of the kopia manifests.
+`{head -8 manifest-listing |  awk 'BEGIN { printf("allmanifests =")} /type:snapshot/ {printf(" %s", $1)} END { printf("\n") }'}
+# `{kopia manifest list  |  awk 'BEGIN { printf("allmanifests =")} /type:snapshot/ {printf(" %s", $1)} END { printf("\n") }'}
+
+# Builds the specific targets.
+allfilenames = ${allmanifests:%=%.filenames}
+manifestsfiles = ${allmanifests:%=%.manifest}
+
+%.filenames: %.index
+	$_filenamearray < $stem.index > $stem.filenames
+
+%.manifest:
+	kopia manifest show $stem > $target
+
+%.index: %.manifest
+	$_kopiaindexer $stem.manifest | sort > $stem.index
+
+# Consider making the mkfile permit keeping this in a different
+# directory.
+all:V: \
+	kopia.filenames
+
+kopia.filenames: $allfilenames
+	sort --merge $prereq  > $target
+	
