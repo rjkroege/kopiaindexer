@@ -8,6 +8,7 @@ _filenamearray = ../filenamearray
 # Builds the specific targets.
 allfilenames = ${allmanifests:%=%.filenames}
 manifestsfiles = ${allmanifests:%=%.manifest}
+indexfiles = ${allmanifests:%=%.index}
 
 %.filenames: %.index
 	$_filenamearray < $stem.index > $stem.filenames
@@ -21,8 +22,11 @@ manifestsfiles = ${allmanifests:%=%.manifest}
 # Consider making the mkfile permit keeping this in a different
 # directory.
 all:V: \
-	kopia.filenames
+	kopia.filenames \
+	kopia.fullindex
 
 kopia.filenames: $allfilenames
 	sort --merge $prereq  > $target
 	
+kopia.fullindex: $indexfiles
+	sort --merge $prereq  > $target
