@@ -1,0 +1,2 @@
+#!/bin/bash
+cat $* | grep obj....k | awk -F\" '{print $4}'

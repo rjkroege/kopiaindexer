@@ -1,0 +1,13 @@
+#!/bin/bash
+awk '{
+	len = length($4)
+	remaining = substr($4, 2)
+	for (i = index(remaining, "/"); length(remaining) > 0; i = index(remaining, "/")) {
+		if (i == 0) {
+			print remaining" "$1
+			break
+		}
+		print substr(remaining, 1, i)" "$1
+		remaining = substr(remaining, i+1);
+	}
+}' | sort
