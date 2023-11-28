@@ -1,4 +1,4 @@
-module github.com/rjkroege/kopiaindexer
+module github.com/rjkroege/kopiaindexer/cmd/lister
 
 go 1.20
 
