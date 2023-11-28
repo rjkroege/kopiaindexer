@@ -19,7 +19,7 @@ indexfiles = ${allmanifests:%=%.index}
 	kopia manifest show $stem > $target
 
 %.index: %.manifest
-	$_kibin/kopiaindexer $stem.manifest | sort > $stem.index
+	$KOPIAINDEXER/cmd/lister/lister $stem.manifest | sort > $stem.index
 
 # Consider making the mkfile permit keeping this in a different directory.
 all:V: \
