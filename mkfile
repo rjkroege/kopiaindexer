@@ -27,7 +27,7 @@ all:V: \
 	kopia.fullindex
 
 kopia.filenames: $allfilenames
-	sort --merge $prereq  > $target
+	sort --merge $prereq  | uniq > $target
 	
 kopia.fullindex: $indexfiles
 	sort --merge $prereq  > $target
