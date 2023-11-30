@@ -5,3 +5,10 @@ X:kopiaindexer/.*\.go: w
 {go build -tags debug}
 {./kopiaindexer}
 {go test}
+
+// Run the 
+rcpu  ween docker run --rm  \
+		--detach \
+		-v /usr/local/bin:/usr/local/bin \
+		-v /usr/local/script:/usr/local/script \
+		--name mkbuilder_test --privileged=true -p 17011:17010 mkbuilder
