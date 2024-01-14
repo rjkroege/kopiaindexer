@@ -83,7 +83,7 @@ WHERE state == "fetched";
 !!
 
 # Load freshly fetched.
-for (i in `{sqlite3 test.db 'select mid from manifests where state == "fetched" limit 3;'}) {
+for (i in `{sqlite3 test.db 'select mid from manifests where state == "fetched";'}) {
 	echo loading $i^.index
 	# I should use a temporary table. I can't use a temporary table unless
 	# I have an extension to import into the table?
