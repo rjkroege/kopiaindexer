@@ -1,6 +1,9 @@
 #!/usr/local/bin/rc
 
-sqlite3 test.db <<'!!'
+idxdir = $HOME/.kopiaindex
+db = $idxdir/kopiaindex.db
+
+sqlite3 $db <<'!!'
 -- Create the manifests table. mid is the manifest id. This is 1-1 with the snapshot id
 create table  if not exists manifests (
 	id INTEGER PRIMARY KEY,
@@ -61,35 +64,34 @@ create  index if not exists files_path_idx on files(path);
 # Note that I should add the snapshot id too because it's really handy.
 # And I need to index on it. And it will let me do what I want with the right
 # magic query.
-for (i in `{sqlite3 test.db 'select mid from manifests where type == "snapshot" and state ISNULL limit 7;'}) {
-	echo starting $i^.manifest && \
-	kopia manifest show $i > $i^.manifest && \
-	$KOPIAINDEXER/cmd/lister/lister $i^.manifest | sed 's/ /,/g' > $i^.index && \
-	sqlite3 test.db 'UPDATE manifests SET state  = "fetched"
+for (i in `{sqlite3 $db 'select mid from manifests where type == "snapshot" and state ISNULL limit 7;'}) {
+	echo starting $idxdir/$i^.manifest && \
+	kopia manifest show $i > $idxdir/$i^.manifest && \
+	$KOPIAINDEXER/cmd/lister/lister $idxdir/$i^.manifest | sed 's/ /,/g' > $idxdir/$i^.index && \
+	sqlite3 $db 'UPDATE manifests SET state  = "fetched"
 		WHERE mid == "'^$i^'";' && \
-	echo done $i^.manifest &
+	echo done $idxdir/$i^.manifest &
 }
 
 # Wait for everything.
 wait
 
-sqlite3 test.db <<'!!'
-UPDATE manifests
-SET snid = json_extract(readfile(mid || ".manifest"), '$.rootEntry.obj')
+sqlite3 $db  'UPDATE manifests
+SET snid = json_extract(readfile("'^$idxdir^'/" || mid || ".manifest"), "$.rootEntry.obj")
 WHERE state == "fetched";
 
--- TODO(rjk): There's might be a better way using extensions.
+-- TODO(rjk): Might be a better way using extensions.
 -- TODO(rjk): Can I build an extension for the Apple database?
-!!
+'
 
 # Load freshly fetched.
-for (i in `{sqlite3 test.db 'select mid from manifests where state == "fetched";'}) {
-	echo loading $i^.index
+for (i in `{sqlite3 $db 'select mid from manifests where state == "fetched";'}) {
+	echo loading $idxdir/$i^.index
 	# I should use a temporary table. I can't use a temporary table unless
 	# I have an extension to import into the table?
-	sqlite3 test.db 'create table if not exists tfiles (fid text, _p text, snid text, path text);'
-	sqlite3 test.db '.import -csv "'^$i^'.index" tfiles'
-	sqlite3 test.db 'INSERT or ignore INTO files (
+	sqlite3 $db 'create table if not exists tfiles (fid text, _p text, snid text, path text);'
+	sqlite3 $db '.import -csv "'^$idxdir/$i^'.index" tfiles'
+	sqlite3 $db 'INSERT or ignore INTO files (
 		fid,
 		snid,
 		path
@@ -98,9 +100,8 @@ for (i in `{sqlite3 test.db 'select mid from manifests where state == "fetched";
 	from tfiles;
 	drop table tfiles;
 	UPDATE manifests SET state  = "loaded" WHERE mid == "'^$i^'";'
-	rm -f $i.manifest $i.index
-	echo done $i^.index
+	rm -f $idxdir/$i^.manifest $idxdir/$i^.index
+	echo done $idxdir/$i^.index
 }
-
 
 # select fid, mid, hostname || ":" || manifests.path ||  files.path from files inner join manifests on manifests.snid == files.snid limit 10;
