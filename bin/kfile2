@@ -1,0 +1,8 @@
+#!/usr/local/bin/rc
+
+idxdir = $HOME/.kopiaindex
+db = $idxdir/kopiaindex.db
+encoded = `{basename $*}
+
+sqlite3 -tabs $db 'select fid, mid, hostname || ":" || manifests.path,  files.path from files inner join manifests on manifests.snid == files.snid  where files.path like "%/'^$encoded^'";'
+

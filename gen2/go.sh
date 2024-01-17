@@ -3,9 +3,10 @@
 idxdir = $HOME/.kopiaindex
 db = $idxdir/kopiaindex.db
 
-sqlite3 $db <<'!!'
--- Create the manifests table. mid is the manifest id. This is 1-1 with the snapshot id
-create table  if not exists manifests (
+# Fetch an updated manifest list.
+kopia manifest list --json > $idxdir/manifest.json
+
+sqlite3 $db 'create table  if not exists manifests (
 	id INTEGER PRIMARY KEY,
 	mid TEXT unique,
 	snid TEXT unique,
@@ -16,16 +17,24 @@ create table  if not exists manifests (
 	mtime TEXT,
 	state TEXT
 );
-
--- Makes an index on hid.
--- Why can't I haz a unique index?
 create index if not exists manifests_snid_idx on manifests(snid);
+-- now there''s a manifests table
 
--- Populate the manifests table 
--- TODO(rjk): Don't update if it already exists (this is breaking my worlds)
--- TODO(rjk): Run a command to generate.
--- TODO(rjk): Track state
-INSERT or ignore INTO manifests (
+-- this can be a temporary table
+create table  if not exists tmp_manifests (
+	id INTEGER PRIMARY KEY,
+	mid TEXT unique,
+	snid TEXT unique,
+	hostname TEXT,
+	path TEXT,
+	type TEXT,
+	username TEXT,
+	mtime TEXT,
+	state TEXT
+);
+-- and a tmp manifests table that I will populate from from manifests list
+
+INSERT or ignore INTO tmp_manifests (
 	mid,
 	hostname,
 	path,
@@ -33,14 +42,29 @@ INSERT or ignore INTO manifests (
 	username,
 	mtime
 ) SELECT 
-  json_extract(value, '$.id'), 
-  json_extract(value, '$.labels.hostname'),
-  json_extract(value, '$.labels.path'),
-  json_extract(value, '$.labels.type'),
-  json_extract(value, '$.labels.username'),
-  json_extract(value, '$.mtime')
-FROM json_each(readfile('manifest.json'));
+  json_extract(value, "$.id"), 
+  json_extract(value, "$.labels.hostname"),
+  json_extract(value, "$.labels.path"),
+  json_extract(value, "$.labels.type"),
+  json_extract(value, "$.labels.username"),
+  json_extract(value, "$.mtime")
+FROM json_each(readfile("'^$idxdir^'/manifest.json"));
 
+-- mark the deleted manifest entries
+UPDATE manifests SET state  = "deleted" WHERE mid not in (SELECT mid FROM tmp_manifests);
+
+-- add the new items
+INSERT or ignore INTO manifests (
+	mid,
+	hostname,
+	path,
+	type,
+	username,
+	mtime
+) SELECT mid, hostname, path, type, username, mtime
+FROM tmp_manifests;
+
+-- create the files table
 create table  if not exists files (
 	id INTEGER PRIMARY KEY,
 	fid TEXT ,
@@ -51,20 +75,22 @@ create table  if not exists files (
 -- TODO(rjk): Add indicies as needed. Probably on fid?
 -- TODO(rjk): Adjust the indexing of the path to address wanting to sub-string it
 -- TODO(rjk): How do I figure out what are the right indicies
+-- TODO(rjk): explore creating a suffix tree
 create  index if not exists files_fid_idx on files(fid);
 create  index if not exists files_path_idx on files(path);
-!!
 
-# TODO(rjk): items will be removed from the manifest.
-# How do I know what's nolonger in the manifest?
+-- drop the temp table
+drop table tmp_manifests;
 
-# Note that I have truncated.
-
+-- Remove all of the items in files corresponding to deleted manifests
+delete  from files where snid in (select snid from manifests where state == "deleted");
+delete from manifests where state == "deleted";
+'
 
 # Note that I should add the snapshot id too because it's really handy.
 # And I need to index on it. And it will let me do what I want with the right
 # magic query.
-for (i in `{sqlite3 $db 'select mid from manifests where type == "snapshot" and state ISNULL limit 7;'}) {
+for (i in `{sqlite3 $db 'select mid from manifests where type == "snapshot" and state ISNULL;'}) {
 	echo starting $idxdir/$i^.manifest && \
 	kopia manifest show $i > $idxdir/$i^.manifest && \
 	$KOPIAINDEXER/cmd/lister/lister $idxdir/$i^.manifest | sed 's/ /,/g' > $idxdir/$i^.index && \
@@ -79,16 +105,12 @@ wait
 sqlite3 $db  'UPDATE manifests
 SET snid = json_extract(readfile("'^$idxdir^'/" || mid || ".manifest"), "$.rootEntry.obj")
 WHERE state == "fetched";
-
--- TODO(rjk): Might be a better way using extensions.
--- TODO(rjk): Can I build an extension for the Apple database?
 '
 
 # Load freshly fetched.
 for (i in `{sqlite3 $db 'select mid from manifests where state == "fetched";'}) {
 	echo loading $idxdir/$i^.index
-	# I should use a temporary table. I can't use a temporary table unless
-	# I have an extension to import into the table?
+	# TODO(rjk): There is a better way with a Sqlite extension and temporary tables.
 	sqlite3 $db 'create table if not exists tfiles (fid text, _p text, snid text, path text);'
 	sqlite3 $db '.import -csv "'^$idxdir/$i^'.index" tfiles'
 	sqlite3 $db 'INSERT or ignore INTO files (
