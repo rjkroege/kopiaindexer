@@ -6,7 +6,7 @@ db = $idxdir/kopiaindex.db
 # Fetch an updated manifest list.
 kopia manifest list --json > $idxdir/manifest.json
 
-sqlite3 $db 'create table  if not exists manifests (
+sqlite3 --unsafe-testing $db 'create table  if not exists manifests (
 	id INTEGER PRIMARY KEY,
 	mid TEXT unique,
 	snid TEXT unique,
@@ -69,15 +69,22 @@ create table  if not exists files (
 	id INTEGER PRIMARY KEY,
 	fid TEXT ,
 	snid TEXT,
-	path TEXT
+	path TEXT,
+	basepath TEXT
+);
+create  index if not exists files_fid_idx on files(fid);
+
+CREATE VIRTUAL TABLE if not exists  fts_paths USING fts5(
+	content=''files'',
+	content_rowid=''id'',
+	path
 );
 
--- TODO(rjk): Add indicies as needed. Probably on fid?
--- TODO(rjk): Adjust the indexing of the path to address wanting to sub-string it
--- TODO(rjk): How do I figure out what are the right indicies
--- TODO(rjk): explore creating a suffix tree
-create  index if not exists files_fid_idx on files(fid);
-create  index if not exists files_path_idx on files(path);
+CREATE TRIGGER IF NOT EXISTS files_fts_insert AFTER INSERT ON files
+BEGIN
+  INSERT INTO fts_paths (rowid, path) VALUES (new.rowid, new.path); 
+END;
+
 
 -- drop the temp table
 drop table tmp_manifests;
@@ -90,11 +97,11 @@ delete from manifests where state == "deleted";
 # Note that I should add the snapshot id too because it's really handy.
 # And I need to index on it. And it will let me do what I want with the right
 # magic query.
-for (i in `{sqlite3 $db 'select mid from manifests where type == "snapshot" and state ISNULL;'}) {
+for (i in `{sqlite3 $db 'select mid from manifests where type == "snapshot" and state ISNULL limit 4;'}) {
 	echo starting $idxdir/$i^.manifest && \
 	kopia manifest show $i > $idxdir/$i^.manifest && \
 	$KOPIAINDEXER/cmd/lister/lister $idxdir/$i^.manifest | sed 's/ /,/g' > $idxdir/$i^.index && \
-	sqlite3 $db 'UPDATE manifests SET state  = "fetched"
+	sqlite3  --unsafe-testing  $db 'UPDATE manifests SET state  = "fetched"
 		WHERE mid == "'^$i^'";' && \
 	echo done $idxdir/$i^.manifest &
 }
@@ -102,7 +109,7 @@ for (i in `{sqlite3 $db 'select mid from manifests where type == "snapshot" and 
 # Wait for everything.
 wait
 
-sqlite3 $db  'UPDATE manifests
+sqlite3  --unsafe-testing  $db  'UPDATE manifests
 SET snid = json_extract(readfile("'^$idxdir^'/" || mid || ".manifest"), "$.rootEntry.obj")
 WHERE state == "fetched";
 '
@@ -111,9 +118,9 @@ WHERE state == "fetched";
 for (i in `{sqlite3 $db 'select mid from manifests where state == "fetched";'}) {
 	echo loading $idxdir/$i^.index
 	# TODO(rjk): There is a better way with a Sqlite extension and temporary tables.
-	sqlite3 $db 'create table if not exists tfiles (fid text, _p text, snid text, path text);'
-	sqlite3 $db '.import -csv "'^$idxdir/$i^'.index" tfiles'
-	sqlite3 $db 'INSERT or ignore INTO files (
+	sqlite3  --unsafe-testing  $db 'create table if not exists tfiles (fid text, _p text, snid text, path text);'
+	sqlite3  --unsafe-testing  $db '.import -csv "'^$idxdir/$i^'.index" tfiles'
+	sqlite3  --unsafe-testing $db 'INSERT or ignore INTO files (
 		fid,
 		snid,
 		path
@@ -125,5 +132,7 @@ for (i in `{sqlite3 $db 'select mid from manifests where state == "fetched";'}) 
 	rm -f $idxdir/$i^.manifest $idxdir/$i^.index
 	echo done $idxdir/$i^.index
 }
+
+# TODO(rjk): I need triggers to cleanup the fulltext
 
 # select fid, mid, hostname || ":" || manifests.path ||  files.path from files inner join manifests on manifests.snid == files.snid limit 10;

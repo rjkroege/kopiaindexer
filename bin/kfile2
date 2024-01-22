@@ -6,3 +6,6 @@ encoded = `{basename $*}
 
 sqlite3 -tabs $db 'select fid, mid, hostname || ":" || manifests.path,  files.path from files inner join manifests on manifests.snid == files.snid  where files.path like "%/'^$encoded^'";'
 
+# make a dataless index table
+# setup triggers
+# blah blah blah
