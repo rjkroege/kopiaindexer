@@ -85,6 +85,10 @@ BEGIN
   INSERT INTO fts_paths (rowid, path) VALUES (new.rowid, new.path); 
 END;
 
+CREATE TRIGGER IF NOT EXISTS files_fts_delete AFTER DELETE on files
+BEGIN
+	DELETE FROM fts_paths WHERE rowid == old.id;
+END;
 
 -- drop the temp table
 drop table tmp_manifests;
@@ -97,22 +101,19 @@ delete from manifests where state == "deleted";
 # Note that I should add the snapshot id too because it's really handy.
 # And I need to index on it. And it will let me do what I want with the right
 # magic query.
-for (i in `{sqlite3 $db 'select mid from manifests where type == "snapshot" and state ISNULL limit 4;'}) {
+for (i in `{sqlite3 $db 'select mid from manifests where type == "snapshot" and state ISNULL limit 10;'}) {
 	echo starting $idxdir/$i^.manifest && \
 	kopia manifest show $i > $idxdir/$i^.manifest && \
 	$KOPIAINDEXER/cmd/lister/lister $idxdir/$i^.manifest | sed 's/ /,/g' > $idxdir/$i^.index && \
-	sqlite3  --unsafe-testing  $db 'UPDATE manifests SET state  = "fetched"
-		WHERE mid == "'^$i^'";' && \
+	sqlite3  --unsafe-testing  $db 'UPDATE manifests SET
+		state  = "fetched",
+		snid =  json_extract(readfile("'^$idxdir^'/" || mid || ".manifest"), "$.rootEntry.obj")
+	WHERE mid == "'^$i^'";' && \
 	echo done $idxdir/$i^.manifest &
 }
 
 # Wait for everything.
 wait
-
-sqlite3  --unsafe-testing  $db  'UPDATE manifests
-SET snid = json_extract(readfile("'^$idxdir^'/" || mid || ".manifest"), "$.rootEntry.obj")
-WHERE state == "fetched";
-'
 
 # Load freshly fetched.
 for (i in `{sqlite3 $db 'select mid from manifests where state == "fetched";'}) {
