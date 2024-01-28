@@ -99,7 +99,7 @@ delete from manifests where state == "deleted";
 # Note that I should add the snapshot id too because it's really handy.
 # And I need to index on it. And it will let me do what I want with the right
 # magic query.
-for (i in `{sqlite3 $db 'select mid from manifests where type == "snapshot" and state ISNULL limit 3;'}) {
+for (i in `{sqlite3 $db 'select mid from manifests where type == "snapshot" and state ISNULL;'}) {
 	echo starting fetching $idxdir/$i^.index && \
 	$_h/tools/_builds/kopia/kopia ls -l -o -j -r $i > $idxdir/$i^.index && \
 	sqlite3  --unsafe-testing  $db 'UPDATE manifests SET
@@ -125,7 +125,7 @@ for (i in `{sqlite3 $db 'select mid from manifests where state == "fetched";'}) 
   json_extract(value, "$.DisplayName")
 FROM json_each(readfile("'^$idxdir^/$i^.index'"));
 	UPDATE manifests SET state  = "loaded" WHERE mid == "'^$i^'";'
-#	rm -f $idxdir/$i^.index
+	rm -f $idxdir/$i^.index
 	echo done $idxdir/$i^.index
 }
 
