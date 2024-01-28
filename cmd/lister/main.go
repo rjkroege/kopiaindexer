@@ -15,8 +15,6 @@ import (
 // Expects a single manifest file as argument.
 
 func main() {
-	log.Println("foo")
-
 	flag.Parse()
 	if len(flag.Args()) != 1 {
 		log.Fatalf("expect a single manifest file as argument\n")

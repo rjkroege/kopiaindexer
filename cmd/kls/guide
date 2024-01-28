@@ -1,0 +1,5 @@
+Edit X:kls/\+Errors: 1,$d
+X:kopiaindexer/.*\.go: w
+
+{go build}
+{./kls  -l /a/00_prebirth.kopia-entry /a/music.kopia-entry }
