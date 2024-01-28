@@ -9,7 +9,6 @@ kopia manifest list --json > $idxdir/manifest.json
 sqlite3 --unsafe-testing $db 'create table  if not exists manifests (
 	id INTEGER PRIMARY KEY,
 	mid TEXT unique,
-	snid TEXT unique,
 	hostname TEXT,
 	path TEXT,
 	type TEXT,
@@ -17,14 +16,13 @@ sqlite3 --unsafe-testing $db 'create table  if not exists manifests (
 	mtime TEXT,
 	state TEXT
 );
-create index if not exists manifests_snid_idx on manifests(snid);
+create index if not exists manifests_mid_idx on manifests(mid);
 -- now there''s a manifests table
 
 -- this can be a temporary table
 create table  if not exists tmp_manifests (
 	id INTEGER PRIMARY KEY,
 	mid TEXT unique,
-	snid TEXT unique,
 	hostname TEXT,
 	path TEXT,
 	type TEXT,
@@ -68,9 +66,9 @@ FROM tmp_manifests;
 create table  if not exists files (
 	id INTEGER PRIMARY KEY,
 	fid TEXT ,
-	snid TEXT,
+	midref INTEGER,
 	path TEXT,
-	basepath TEXT
+	FOREIGN KEY(midref) REFERENCES manifests(id)
 );
 create  index if not exists files_fid_idx on files(fid);
 
@@ -94,22 +92,20 @@ END;
 drop table tmp_manifests;
 
 -- Remove all of the items in files corresponding to deleted manifests
-delete  from files where snid in (select snid from manifests where state == "deleted");
+delete  from files where midref in (select id from manifests where state == "deleted");
 delete from manifests where state == "deleted";
 '
 
 # Note that I should add the snapshot id too because it's really handy.
 # And I need to index on it. And it will let me do what I want with the right
 # magic query.
-for (i in `{sqlite3 $db 'select mid from manifests where type == "snapshot" and state ISNULL limit 10;'}) {
-	echo starting $idxdir/$i^.manifest && \
-	kopia manifest show $i > $idxdir/$i^.manifest && \
-	$KOPIAINDEXER/cmd/lister/lister $idxdir/$i^.manifest | sed 's/ /,/g' > $idxdir/$i^.index && \
+for (i in `{sqlite3 $db 'select mid from manifests where type == "snapshot" and state ISNULL limit 3;'}) {
+	echo starting fetching $idxdir/$i^.index && \
+	$_h/tools/_builds/kopia/kopia ls -l -o -j -r $i > $idxdir/$i^.index && \
 	sqlite3  --unsafe-testing  $db 'UPDATE manifests SET
-		state  = "fetched",
-		snid =  json_extract(readfile("'^$idxdir^'/" || mid || ".manifest"), "$.rootEntry.obj")
+		state  = "fetched"
 	WHERE mid == "'^$i^'";' && \
-	echo done $idxdir/$i^.manifest &
+	echo done fetching $idxdir/$i^.index &
 }
 
 # Wait for everything.
@@ -119,21 +115,17 @@ wait
 for (i in `{sqlite3 $db 'select mid from manifests where state == "fetched";'}) {
 	echo loading $idxdir/$i^.index
 	# TODO(rjk): There is a better way with a Sqlite extension and temporary tables.
-	sqlite3  --unsafe-testing  $db 'create table if not exists tfiles (fid text, _p text, snid text, path text);'
-	sqlite3  --unsafe-testing  $db '.import -csv "'^$idxdir/$i^'.index" tfiles'
 	sqlite3  --unsafe-testing $db 'INSERT or ignore INTO files (
 		fid,
-		snid,
+		midref,
 		path
 	) SELECT 
-		fid, snid, path
-	from tfiles;
-	drop table tfiles;
+  json_extract(value, "$.Oid"), 
+  (select id from manifests where mid == "'^$i^'"),
+  json_extract(value, "$.DisplayName")
+FROM json_each(readfile("'^$idxdir^/$i^.index'"));
 	UPDATE manifests SET state  = "loaded" WHERE mid == "'^$i^'";'
-	rm -f $idxdir/$i^.manifest $idxdir/$i^.index
+#	rm -f $idxdir/$i^.index
 	echo done $idxdir/$i^.index
 }
 
-# TODO(rjk): I need triggers to cleanup the fulltext
-
-# select fid, mid, hostname || ":" || manifests.path ||  files.path from files inner join manifests on manifests.snid == files.snid limit 10;

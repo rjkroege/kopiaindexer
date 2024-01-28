@@ -6,7 +6,7 @@ joinedargs = $"*
 
 sqlite3 -tabs $db 'select fid, mid, hostname || ":" || manifests.path,  files.path FROM
 files
-join fts_paths ON files.rowid = fts_paths.rowid
-join manifests ON manifests.snid == files.snid
+join fts_paths ON files.id = fts_paths.rowid
+join manifests ON manifests.id == files.midref
 where fts_paths match "'^$joinedargs^'";'
 
